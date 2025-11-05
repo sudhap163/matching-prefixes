@@ -1,53 +1,62 @@
 package org.truecaller.prefixmatcher;
 
 import lombok.extern.slf4j.Slf4j;
-import org.truecaller.prefixmatcher.config.ConfigManager;
-import org.truecaller.prefixmatcher.service.PrefixMatcherServiceUsingTrie;
-import org.truecaller.prefixmatcher.service.PrefixMatching;
+import org.truecaller.prefixmatcher.service.PrefixMatchingService;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Main application class and entry point.
+ * This class handles initialization, provides a simple command-line interface (CLI),
+ * and drives the core logic of the PrefixMatchingService.
+ */
 @Slf4j
 public class Main {
 
+    /** Constant command used to terminate the application loop. */
     private static final String EXIT_CMD = "exit";
 
+    /**
+     * The main method, serving as the application's entry point.
+     * It sets up the matching service and runs the interactive CLI loop.
+     * @param args Command line arguments (not used).
+     */
     public static void main(String[] args) {
 
-        String filePath = ConfigManager.getInstance().getConfig().getMatcher().getPrefixFile();
-        System.out.println("File path from config : " + filePath);
-
-        String strategy = ConfigManager.getInstance().getConfig().getMatcher().getStrategy();
-        System.out.println("Strategy from config : " + strategy);
-
         Scanner scanner = new Scanner(System.in);
+        PrefixMatchingService matcherService;
 
-        PrefixMatching matcherService;
-
+        // --- 1. Initialization ---
         try {
-            matcherService = new PrefixMatcherServiceUsingTrie(filePath);
+            // Retrieve the single, fully initialized instance of the matching service (Singleton)
+            matcherService = PrefixMatchingService.getInstance();
         } catch (Exception e) {
-            log.error("Failed to load prefixes from file '{}': {}", filePath, e.getMessage());
+            // Fatal error during configuration or service initialization. Log the error and exit the application.
+            log.error("Failed to initialize {}", e.getMessage());
             return;
         }
 
+        // Display interface instructions to the user
         System.out.println("Prefix Matcher Ready.");
         System.out.println("Single match: type a string");
         System.out.println("Batch match: comma-separated values (e.g., foo,bar,baz)");
         System.out.println("Type '" + EXIT_CMD + "' to exit.");
 
+        // --- 2. Interactive Loop ---
         while (true) {
 
             System.out.print("> ");
             String input = scanner.nextLine().trim();
 
+            // Check for termination command
             if (input.equalsIgnoreCase(EXIT_CMD)) {
                 break;
             }
 
-            // Batch mode
+            // Batch mode: Activated if the input contains a comma
             if (input.contains(",")) {
+                // Split input by comma, clean up spaces, filter empty strings, and collect into a Set
                 Set<String> stringsToMatch = Arrays.stream(input.split(","))
                         .map(String::trim)
                         .filter(str -> !str.isEmpty())
@@ -58,10 +67,12 @@ public class Main {
                     continue;
                 }
 
-                log.info("Processing batch: {}", stringsToMatch);
+                log.debug("Processing batch request: {}", stringsToMatch);
 
+                // Delegate batch matching to the service
                 Map<String, String> results = matcherService.matchAll(stringsToMatch);
 
+                // Output batch results
                 System.out.println("Batch Results:");
                 results.forEach((str, match) ->
                         System.out.println("  " + str + " → " + match));
@@ -75,12 +86,19 @@ public class Main {
                 continue;
             }
 
+            log.debug("Processing single request: {}", input);
+
+            // Delegate single matching to the service
             String result = matcherService.matchSingle(input);
+
+            // Output single result
             System.out.println("Result:");
             System.out.println("  " + input + " → " + result);
         }
 
-//        matcherService.shutdown();
-        System.out.println("Application terminated. Goodbye!");
+        // --- 3. Shutdown ---
+        // Call the service's shutdown method to gracefully terminate internal resources (e.g., ExecutorService).
+        matcherService.shutdown();
+        log.info("Application terminated. Goodbye!");
     }
 }
