@@ -1,7 +1,9 @@
 package org.truecaller.prefixmatcher;
 
 import lombok.extern.slf4j.Slf4j;
+import org.truecaller.prefixmatcher.config.ConfigManager;
 import org.truecaller.prefixmatcher.service.PrefixMatcherServiceUsingTrie;
+import org.truecaller.prefixmatcher.service.PrefixMatching;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,12 +15,15 @@ public class Main {
 
     public static void main(String[] args) {
 
+        String filePath = ConfigManager.getInstance().getConfig().getMatcher().getPrefixFile();
+        System.out.println("File path from config : " + filePath);
+
+        String strategy = ConfigManager.getInstance().getConfig().getMatcher().getStrategy();
+        System.out.println("Strategy from config : " + strategy);
+
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Enter prefix file path: ");
-        String filePath = scanner.nextLine().trim();
-
-        PrefixMatcherServiceUsingTrie matcherService;
+        PrefixMatching matcherService;
 
         try {
             matcherService = new PrefixMatcherServiceUsingTrie(filePath);
@@ -34,7 +39,7 @@ public class Main {
 
         while (true) {
 
-            System.out.println("> ");
+            System.out.print("> ");
             String input = scanner.nextLine().trim();
 
             if (input.equalsIgnoreCase(EXIT_CMD)) {
@@ -75,7 +80,7 @@ public class Main {
             System.out.println("  " + input + " → " + result);
         }
 
-        matcherService.shutdown();
+//        matcherService.shutdown();
         System.out.println("Application terminated. Goodbye!");
     }
 }
