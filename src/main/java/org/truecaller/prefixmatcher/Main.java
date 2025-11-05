@@ -1,9 +1,7 @@
 package org.truecaller.prefixmatcher;
 
 import lombok.extern.slf4j.Slf4j;
-import org.truecaller.prefixmatcher.io.PrefixLoader;
 import org.truecaller.prefixmatcher.service.PrefixMatcherServiceUsingTrie;
-import org.truecaller.prefixmatcher.models.trie.PrefixTrie;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -20,16 +18,14 @@ public class Main {
         System.out.println("Enter prefix file path: ");
         String filePath = scanner.nextLine().trim();
 
-        PrefixTrie trie;
+        PrefixMatcherServiceUsingTrie matcherService;
+
         try {
-            trie = PrefixLoader.loadFromConfiguredFile(filePath);
+            matcherService = new PrefixMatcherServiceUsingTrie(filePath);
         } catch (Exception e) {
             log.error("Failed to load prefixes from file '{}': {}", filePath, e.getMessage());
             return;
         }
-
-        int threadCount = Runtime.getRuntime().availableProcessors();
-        PrefixMatcherServiceUsingTrie matcherService = new PrefixMatcherServiceUsingTrie(trie, threadCount);
 
         System.out.println("Prefix Matcher Ready.");
         System.out.println("Single match: type a string");

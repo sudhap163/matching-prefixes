@@ -1,7 +1,10 @@
 package org.truecaller.prefixmatcher.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.truecaller.prefixmatcher.io.PrefixLoader;
 import org.truecaller.prefixmatcher.models.trie.PrefixTrie;
 
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -11,14 +14,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class PrefixMatcherServiceUsingTrie implements PrefixMatching {
 
     private final PrefixTrie trie;
     private final ExecutorService executor;
 
-    public PrefixMatcherServiceUsingTrie(PrefixTrie trie, int threadCount) {
-        this.trie = trie;
-        this.executor = Executors.newFixedThreadPool(threadCount);
+    public PrefixMatcherServiceUsingTrie(String filePath) throws IOException {
+
+        List<String> prefixes = PrefixLoader.loadPrefixesFromConfiguredFile(filePath);
+
+        this.trie = new PrefixTrie();
+        this.trie.buildTrie(prefixes);
+        this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     }
 
     @Override
