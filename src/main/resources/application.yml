@@ -1,3 +1,0 @@
-matcher:
-    prefixFile: /Users/sudhap163/Desktop/interviews/TrueCaller/matching-prefixes/src/main/resources/sample_prefixes.txt
-    strategy: TRIE

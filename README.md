@@ -1,175 +1,103 @@
-# Prefix Matching Service: High-Performance and Scalable
+# Longest Prefix Match Service
 
-## Introduction
-
-The **Prefix Matching Service** is a high-performance, modular Java application designed for the core task of **efficiently finding the longest available prefix** for any given input string(s).
-
-The system prioritizes **scalability** and **reliability** by using proven design patterns, configurable initialization, and concurrent processing:
-
-* **Performance:** Achieved via the **Trie (Prefix Tree)** data structure, ensuring near $O(L)$ lookup time complexity, where $L$ is the length of the input string.
-* **Scalability:** Achieved by leveraging **multithreading** (ExecutorService) for concurrent batch processing and initializing resources (like the Trie and the Executor) based on configuration parameters (e.g., number of available CPU cores).
-* **Best Practices:** The code strictly adheres to good coding practices, including **Singletons** for resource management, **modular design**, robust **logging (`@Slf4j`)**, and clear separation of concerns.
-
-The Command Line Interface (CLI) is provided as an integration sample, demonstrating both single-string and highly concurrent batch matching capabilities.
+This project provides a high-performance, concurrent service for finding the **longest matching prefix** for a given input string or a list of input strings.  
+The core algorithm relies on a highly optimized **Trie (Prefix Tree)** implementation.
 
 ---
 
-## Architectural Design and Scalability
+## Salient Features
 
-The architecture is built on five core components, ensuring clear responsibilities and easy maintenance.
-
-| Component | Design Pattern / Focus | Scalability & Practices | Description |
-| :--- | :--- | :--- | :--- |
-| **`ConfigManager`** | **Singleton** (Initialization-on-demand) | **Thread-Safe Resource Loading** | Loads and centralizes application configuration (`application.yml`) only once, preventing race conditions and redundant I/O. |
-| **`PrefixLoader`** | **Utility Class (Modular)** | **Modular, I/O Separation** | Handles robust file I/O using Java Streams and `try-with-resources`, ensuring clean data processing and separation from business logic. |
-| **`PrefixMatchingService`** | **Singleton + Factory Pattern** | **Concurrency & Configurable Initialization** | Manages the **ExecutorService** initialized based on CPU cores (`Runtime.getRuntime().availableProcessors()`) for scalable, parallel batch processing. |
-| **`PrefixMatcher`** | **Interface (Abstraction)** | **Modular, Open for Extension** | Defines the contract for matching, decoupling the service from the specific data structure used (e.g., `PrefixTrie`). |
-| **`PrefixTrie`** | **Data Structure** | **Performance & Efficiency** | Implements the fast $O(L)$ longest prefix lookup algorithm. |
+### 1. High-Performance Matching via Trie
+- Uses a specialized **TriePrefixMatcher** implementation.
+- Prefix lookup runs in **O(L)** time, where *L* is the length of the input string.
+- Lookup speed is **independent** of the total number of loaded prefixes.
 
 ---
 
-## Setup and Execution
+### 2. Built-in Concurrency Management
+- Supports concurrent matching for large batches via `matchConcurrentStrings`.
+- Uses a **Fixed Thread Pool** (`THREAD_POOL_SIZE = 4`) to manage CPU efficiently.
+- Uses `ExecutorService.invokeAll()` to process tasks in parallel and wait for results.
+- Greatly reduces processing time for batch workloads.
 
-### Prerequisites
+---
 
-* Java Development Kit (JDK) **8+** (Recommended: JDK 17 or higher)
-* Gradle (for building)
+### 3. Immediate Initialization and Readiness
+- Prefixes are fully loaded into the Trie **at construction time**.
+- Ensures the service is immediately ready for requests.
+- Keeps the CLI / caller decoupled from data-loading complexity.
 
-### 1. Project Build
+---
 
-Clone the repository and build the executable JAR:
+### 4. Graceful Resource Shutdown
+- Provides a robust `shutdown()` method to cleanly terminate internal threads.
+- Attempts graceful termination first; forces shutdown if needed.
 
-```bash
-git clone https://github.com/sudhap163/matching-prefixes
-cd matching-prefixes
-./gradlew clean build
+---
+
+## Good Practices and Architectural Decisions
+
+### 1. Separation of Concerns
+| Component | Responsibility |
+|----------|----------------|
+| **LongestPrefixMatchService** | Orchestration, concurrency, logging, executor lifecycle |
+| **PrefixMatcher / TriePrefixMatcher** | Data structure + longest-prefix search algorithm |
+
+This separation enables easier testing and future extensibility.
+
+---
+
+### 2. Dependency Inversion & Factory Pattern
+- The service depends on the **PrefixMatcher interface**, not the concrete Trie implementation.
+- `createMatcherInstance()` encapsulates instantiation.
+- Allows introducing new matcher strategies (e.g., Hash-based or Aho-Corasick) without changes to the service API.
+
+---
+
+### 3. Robust Concurrency Handling
+- Uses `Executors.newFixedThreadPool(4)` to avoid resource exhaustion.
+- Uses `Callable` + `Future` to retrieve match results cleanly.
+- Exception handling is done safely with:
+    - Catching `ExecutionException`
+    - Logging root causes
+    - `Thread.currentThread().interrupt()` to propagate interruption correctly
+
+---
+
+### 4. Proper Resource Lifecycle Management
+Shutdown workflow:
+```java
+executor.shutdown();
+executor.awaitTermination(5, TimeUnit.SECONDS);
+executor.shutdownNow();
 ```
 
-### 2. Configuration (`application.yml`)
+---
 
-The application's runtime behavior is configured via `src/main/resources/application.yml`. All service instances are initialized based on these config variables.
+### 5. Structured Logging
 
-```bash
-# application.yml
-matcher:
-  # Path to the file containing one prefix per line
-  prefixFile: "/Users/XYZ/Downloads/matching-prefixes/src/main/resources/application.yml"
-  
-  # The strategy implementation to use (currently only "TRIE" is supported)
-  strategy: "TRIE"
-```
+The service uses `@Slf4j` to provide standardized and consistent logging for:
 
-### 3. Prefix Data File
+- Initialization events
+- Prefix loading operations
+- Service shutdown events
+- Debug and diagnostic output for troubleshooting
 
-The file specified in `prefixFile` must exist. The system handles prefix extraction, cleaning (trimming/filtering), and then builds the Trie data structure during service initialization.
+---
 
-### 4. Running the Application (CLI Mode)
+## Future Improvements & Roadmap
 
-Execute the compiled JAR file. The initialization process (Config loading, Trie building, Executor creation) happens transparently upon the first call to `PrefixMatchingService.getInstance()`.
+### 1. Architectural Improvements
+- Introduce **constructor-based dependency injection** for `PrefixMatcher` and `ExecutorService`.
+- Move prefix loading out of the constructor into an explicit `init()` method to enable staged initialization.
 
-```bash
-java -jar target/prefix-matching-service-1.0.0.jar
-```
+### 2. Performance & Concurrency Enhancements
+- Replace blocking `invokeAll` with **CompletableFuture** for **non-blocking parallel execution**.
+- Make thread pool size configurable (via configuration property or adapt to `Runtime.getRuntime().availableProcessors()`).
 
-## How to Run (CLI Mode)
+### 3. Data Structure & Flexibility Enhancements
+- Support **dynamic prefix updates**, such as:
+    - `addPrefix(String prefix)`
+    - `removePrefix(String prefix)`
+- Add additional prefix-matching implementations, such as **Aho-Corasick**, for scenarios requiring streaming or multi-pattern search.
 
-This section details how to execute the application and start the interactive Command Line Interface.
-
-### Running the Application
-
-Execute the compiled JAR file located in the `build/libs/` directory. The initialization process (Config loading, Trie building, Executor creation) happens transparently upon the first call to `PrefixMatchingService.getInstance()`.
-
-```bash
-# Execute the application JAR file
-java -jar build/libs/matching-prefixes-1.0.0.jar
-```
-
-The application will start in interactive CLI mode:
-
-```
-Prefix Matcher Ready.
-Single match: type a string
-Batch match: comma-separated values (e.g., foo,bar,baz)
-Type 'exit' to exit.
->
-```
-
-## CLI Usage and Demonstration
-
-The interactive interface demonstrates the service capabilities.
-
-### 1. Single Match Mode (Synchronous)
-
-Input a single string for immediate lookup.
-
-```
-Prefix Matcher Ready.
-...
-> prefixbatchtest
-Result:
-  prefixbatchtest → PrefixA
-```
-
-### 2. Batch Match Mode (Concurrent and Scalable)
-
-Input multiple strings separated by a comma. The `matchAll()` method delegates each input to the ExecutorService, utilizing multiple threads to maximize throughput.
-
-```
-> apple, Banana, anOtherstring, query_1
-Processing batch: [Banana, apple, anOtherstring, query_1]
-Batch Results:
-  Banana → preFixB
-  apple → PrefixA
-  query_1 → No matching prefix found
-  anOtherstring → Another
-```
-
-## Application Integration Snippet
-
-To utilize the service within your application, retrieve the single `PrefixMatchingService` instance and call the necessary methods. `shutdown()` method needs to be called when your application exits.
-
-```
-import java.util.Set;
-import java.util.Map;
-
-public class AppIntegration {
-    
-    public static void main(String[] args) {
-        // 1. Get the single, initialized instance
-        PrefixMatchingService service = PrefixMatchingService.getInstance();
-
-        // 2. Define the inputs
-        Set<String> stringsToFind = Set.of(
-            "test_prefix_input", "another_query"
-        );
-
-        try {
-            // 3. Call the scalable, concurrent batch matching method
-            Map<String, String> results = service.matchAll(stringsToFind);
-
-            System.out.println("Integration Results:");
-            results.forEach((input, match) -> 
-                System.out.println("Input: " + input + ", Match: " + match));
-            
-        } catch (RuntimeException e) {
-            // Handle initialization or execution errors
-            System.err.println("Matching failed: " + e.getMessage());
-        } finally {
-            // 4. Always ensure resource cleanup on exit
-            service.shutdown();
-        }
-    }
-}
-```
-
-## Graceful Shutdown and Resource Management
-
-The application ensures all internal resources are cleanly released upon exit.
-
-When the user types `exit`, the `PrefixMatchingService.shutdown()` method is called.
-
- - This method initiates a graceful shutdown of the internal `ExecutorService`.
-
- - The system waits up to 60 seconds (configurable) for active matching tasks to complete.
-
- - If the timeout is reached, the Executor is forcefully shut down (`shutdownNow()`), preventing thread leaks and ensuring a reliable application exit.
